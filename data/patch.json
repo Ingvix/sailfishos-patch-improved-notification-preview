@@ -1,0 +1,8 @@
+{
+    "name": "Improved notification preview",
+    "description": "Moves enlargened app icon inside the preview bubble. Provides settings to customize notification preview's look and behavior.",
+    "category": "homescreen",
+    "infos": {
+        "maintainer": "Ingvix"
+    }
+}

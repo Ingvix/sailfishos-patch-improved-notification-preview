@@ -1,0 +1,836 @@
+--- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-03 12:15:42.705476978 +0300
++++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-13 12:49:37.364665199 +0300
+@@ -12,6 +12,7 @@
+ import org.nemomobile.lipstick 0.1
+ import org.nemomobile.thumbnailer 1.0
+ import org.nemomobile.devicelock 1.0
++import Nemo.Configuration 1.0
+ import "../systemwindow"
+ 
+ SystemWindow {
+@@ -75,18 +76,45 @@
+     opacity: 0
+     visible: false
+ 
+-    Image {
+-        id: popupIcon
++    property bool removeRequested: false
+ 
+-        x: -width
+-        y: Theme.paddingMedium
+-        width: Theme.iconSizeSmall
+-        fillMode: Image.PreserveAspectFit
+-        source: notificationWindow.iconUrl ? notificationWindow.iconUrl : 'image://theme/icon-lock-information'
+-        sourceSize.width: width
++    function notificationAction() {
++        if (notification) {
++            notificationWindow._invoked = true
++            notification.actionInvoked("default")
++
++            // Also go to the switcher in case the screen was locked at invocation
++            Lipstick.compositor.unlock()
++        }
++    }
++
++    function dismissPreview() {
++
++        forceHideTimer.stop()
++        notificationWindow.notificationExpired()
++    }
++
++    function removeNotification() {
++        removeRequested = true
++
++        forceHideTimer.stop()
++        notificationWindow.notificationExpired()
++    }
+ 
+-        layer.effect: PressEffect {}
+-        layer.enabled: popupArea.down
++    ConfigurationGroup {
++        id: previewSettings
++        path: "/desktop/lipstick-jolla-home/notification-preview"
++
++        property int style: 0
++        property int corner_radius: {Theme.paddingSmall}
++        property int margin: 0
++        property int position: 0
++        property int min_width: 0
++        property int max_width: 57
++        property int click_action: 1
++        property int left_swipe_action: 0
++        property int right_swipe_action: 0
++        property int down_swipe_action: 0
+     }
+ 
+     MouseArea {
+@@ -94,26 +122,41 @@
+ 
+         property bool down: pressed && containsMouse
+         property real textOpacity: 0
+-        property color textColor: down ? Theme.highlightColor : Theme.primaryColor
+-        property real displayWidth: Theme.itemSizeSmall*5
++        property color textColor: down || drag.active ? Theme.highlightColor : Theme.primaryColor
++        property real maxDisplayWidth: previewSettings.max_width / 100 * Screen.height
++        property real minDisplayWidth: previewSettings.min_width / 100 * Screen.height
++        property real displayWidth: body.width + bodyContainer.x + Theme.paddingMedium > minDisplayWidth
++                                    || summary.contentWidth + summary.x + Theme.paddingMedium > minDisplayWidth
++                                    ? Math.min((body.width > summary.contentWidth ? body.width : summary.contentWidth)
++                                               + bodyContainer.x + Theme.paddingMedium, notificationWindow.width
++                                               - (previewSettings.style !== 2 ? 2*previewSettings.margin : 0), maxDisplayWidth)
++                                    : Math.min(minDisplayWidth, notificationWindow.width
++                                               - (previewSettings.style !== 2 ? 2*previewSettings.margin : 0))
++        property bool notificationShownNSteady: false
+ 
+         objectName: "NotificationPreview_popupArea"
+         anchors {
+-            top: popupIcon.top
+-            left: popupIcon.right
+-            leftMargin: Theme.paddingSmall/2
++            top: parent.top
++            horizontalCenter: previewSettings.position === 0 ? parent.horizontalCenter : undefined
++            left: previewSettings.position === 1 ? parent.left : undefined
++            right: previewSettings.position === 2 ? parent.right : undefined
++            margins: previewSettings.style !== 2 ? previewSettings.margin : 0
+         }
+         width: displayWidth
+         height: Math.max(Theme.itemSizeSmall, summary.y*2 + summary.height + bodyContainer.anchors.topMargin + bodyContainer.height)
+         opacity: 0
+ 
++        onWidthChanged: {
++            if (notificationShownNSteady) {
++                scrollAnimation.reset()
++                if (scrollAnimation.initialize(body, bodyContainer)) {
++                    scrollAnimation.start()
++                }
++            }
++        }
+         onClicked: {
+-            if (notification) {
+-                notificationWindow._invoked = true
+-                notification.actionInvoked("default")
+-
+-                // Also go to the switcher in case the screen was locked at invocation
+-                Lipstick.compositor.unlock()
++            if (clickAction !== undefined) {
++                clickAction()
+             }
+         }
+         onDownChanged: {
+@@ -126,67 +169,259 @@
+ 
+         Rectangle {
+             anchors.fill: parent
+-            radius: Theme.paddingSmall
+-            color: Qt.tint(Theme.highlightBackgroundColor, Qt.rgba(0, 0, 0, 0.2))
++            radius: previewSettings.style === 2 && (transpose && parent.width === Screen.height || !transpose && parent.width === Screen.width)
++                    ? 0 : previewSettings.corner_radius
++            color: popupArea.down || popupArea.drag.active ? Qt.tint(Qt.tint(Theme.highlightBackgroundColor, Qt.rgba(0, 0, 0, 0.2)), Theme.rgba(Theme.highlightDimmerColor, 0.4))
++                        : Qt.tint(Theme.highlightBackgroundColor, Qt.rgba(0, 0, 0, 0.2))
++            clip: true
++
++            Behavior on radius {
++                NumberAnimation {duration: 100; easing.type: Easing.InOutQuad}
++            }
+ 
+             Rectangle {
+-                visible: popupArea.down
+-                anchors.fill: parent
+-                radius: parent.radius
+-                color: Theme.highlightDimmerColor
+-                opacity: 0.4
+-            }
+-
+-            Label {
+-                id: summary
+-
+-                anchors {
+-                    top: parent.top
+-                    topMargin: Theme.paddingMedium/2
+-                    left: parent.left
+-                    leftMargin: Theme.paddingLarge
+-                    right: parent.right
+-                    rightMargin: Theme.paddingLarge
+-                }
+-                color: popupArea.textColor
+-                opacity: popupArea.textOpacity
+-                truncationMode: TruncationMode.Fade
+-                font.pixelSize: Theme.fontSizeSmall
+-                visible: text.length
+-                height: visible ? implicitHeight : 0
+-                textFormat: Text.PlainText
+-                maximumLineCount: 1
+-                // Only show the first line of the summary, if there is more
+-                text: firstLine(notificationWindow.summaryText)
++                height: parent.radius
++                width: height
++                color: parent.color
++                anchors.top: parent.top
++                anchors.left: parent.left
++                visible: previewSettings.style > 0 && previewSettings.style < 4
++            }
++            Rectangle {
++                height: parent.radius
++                width: height
++                color: parent.color
++                anchors.top: parent.top
++                anchors.right: parent.right
++                visible: previewSettings.style === 1 || previewSettings.style === 2 || previewSettings.style === 4
++            }
++            Rectangle {
++                height: parent.radius
++                width: height
++                color: parent.color
++                anchors.bottom: parent.bottom
++                anchors.left: parent.left
++                visible: previewSettings.style === 1 || previewSettings.style === 2 && previewSettings.position === 1
++            }
++            Rectangle {
++                height: parent.radius
++                width: height
++                color: parent.color
++                anchors.bottom: parent.bottom
++                anchors.right: parent.right
++                visible: previewSettings.style === 1 || previewSettings.style === 2 && previewSettings.position === 2
+             }
+ 
+             Item {
+-                id: bodyContainer
+-
+-                anchors {
+-                    top: summary.bottom
+-                    topMargin: summary.visible ? 0 : -height / 2
+-                    left: summary.left
+-                    right: summary.right
+-                }
+-                clip: true
+-                height: body.height
++                id: contentBase
++                height: parent.height
++                width: parent.width
+ 
+                 Label {
+-                    id: body
++                    id: summary
+ 
+-                    width: contentWidth
++                    anchors {
++                        top: parent.top
++                        topMargin: Theme.paddingMedium/2
++                        left: popupIcon.right
++                        leftMargin: Theme.paddingMedium
++                        right: parent.right
++                        rightMargin: Theme.paddingMedium
++                    }
+                     color: popupArea.textColor
+                     opacity: popupArea.textOpacity
+-                    truncationMode: TruncationMode.None
+-                    font.pixelSize: Theme.fontSizeExtraSmall
++                    truncationMode: TruncationMode.Fade
++                    font.pixelSize: Theme.fontSizeSmall
+                     visible: text.length
+                     height: visible ? implicitHeight : 0
+                     textFormat: Text.PlainText
+                     maximumLineCount: 1
+-                    // Only show the first line of the body, if there is more
+-                    text: firstLine(notificationWindow.bodyText)
++                    // Only show the first line of the summary, if there is more
++                    text: firstLine(notificationWindow.summaryText)
++                }
++
++                Item {
++                    id: bodyContainer
++
++                    anchors {
++                        top: summary.bottom
++                        topMargin: summary.visible ? 0 : -height / 2
++                        left: summary.left
++                        right: summary.right
++                    }
++                    clip: true
++                    height: body.height
++
++                    Label {
++                        id: body
++
++                        width: contentWidth
++                        color: popupArea.textColor
++                        opacity: popupArea.textOpacity
++                        truncationMode: TruncationMode.None
++                        font.pixelSize: Theme.fontSizeExtraSmall
++                        visible: text.length
++                        height: visible ? implicitHeight : 0
++                        textFormat: Text.PlainText
++                        maximumLineCount: 1
++                        // Only show the first line of the body, if there is more
++                        text: firstLine(notificationWindow.bodyText)
++                    }
+                 }
++
++                Image {
++                    id: popupIcon
++
++                    anchors {
++                        left: parent.left
++                        leftMargin: Theme.paddingMedium
++                        verticalCenter: parent.verticalCenter
++                    }
++                    width: Theme.iconSizeMedium
++                    fillMode: Image.PreserveAspectFit
++                    source: notificationWindow.iconUrl ? notificationWindow.iconUrl : 'image://theme/icon-lock-information'
++                    sourceSize.width: width
++
++                    layer.effect: PressEffect {}
++                    layer.enabled: popupArea.down || popupArea.drag.active
++                }
++
++                Image {
++                    id: leftIcon
++                    x: -(width + Theme.paddingSmall)
++                    anchors.verticalCenter: parent.verticalCenter
++                    source: (previewSettings.right_swipe_action === 1
++                             ? "image://theme/icon-m-acknowledge?"
++                             : previewSettings.right_swipe_action === 2
++                               ? "image://theme/icon-m-dismiss?"
++                               : "image://theme/icon-m-delete?") + (contentBase.x === popupArea.rightSwipeAcceptX
++                                                                    ? Theme.highlightColor : Theme.primaryColor)
++                }
++
++                Image {
++                    id: rightIcon
++                    x: parent.width + Theme.paddingSmall
++                    anchors.verticalCenter: parent.verticalCenter
++                    source: (previewSettings.left_swipe_action === 1
++                             ? "image://theme/icon-m-acknowledge?"
++                             : previewSettings.left_swipe_action === 2
++                               ? "image://theme/icon-m-dismiss?"
++                               : "image://theme/icon-m-delete?") + (contentBase.x === popupArea.leftSwipeAcceptX
++                                                                    ? Theme.highlightColor : Theme.primaryColor)
++                }
++
++                Image {
++                    id: topIcon
++                    y: -(height + Theme.paddingSmall)
++                    anchors.horizontalCenter: parent.horizontalCenter
++                    source: (previewSettings.down_swipe_action === 1
++                             ? "image://theme/icon-m-acknowledge?"
++                             : previewSettings.down_swipe_action === 2
++                               ? "image://theme/icon-m-dismiss?"
++                               : "image://theme/icon-m-delete?") + (contentBase.y === popupArea.downSwipeAcceptY
++                                                                    ? Theme.highlightColor : Theme.primaryColor)
++                }
++
++                Behavior on x {
++                    id: behaviorX
++                    enabled: false
++                    NumberAnimation {duration: 300 / popupArea.drag.maximumX * Math.abs(contentBase.x); easing.type: Easing.InOutQuad}
++                }
++
++                Behavior on y {
++                    id: behaviorY
++                    enabled: false
++                    NumberAnimation {duration: 300 / popupArea.drag.maximumY * contentBase.y; easing.type: Easing.InOutQuad}
++                }
++
++                onXChanged: if (popupArea.drag.active && !popupArea.dragAxisDetermined) {
++                                popupArea.drag.axis = Math.abs(x) > y ? Drag.XAxis : Drag.YAxis
++                                popupArea.dragAxisDetermined = true
++                            }
++                onYChanged: if (popupArea.drag.active && !popupArea.dragAxisDetermined) {
++                                popupArea.drag.axis = y > Math.abs(x) ? Drag.YAxis : Drag.XAxis
++                                popupArea.dragAxisDetermined = true
++                            }
++            }
++        }
++        property bool dragAxisDetermined: false
++        property var clickAction: {
++            previewSettings.click_action === 0 ? undefined
++            : previewSettings.click_action === 1
++              ? notificationAction
++              : previewSettings.click_action === 2
++                ? dismissPreview
++                : removeNotification
++        }
++        property int rightSwipeAcceptX: leftIcon.width + Theme.paddingMedium
++        property var rightSwipeAction: {
++            previewSettings.right_swipe_action === 0 ? undefined
++            : previewSettings.right_swipe_action === 1
++              ? notificationAction
++              : previewSettings.right_swipe_action === 2
++                ? dismissPreview
++                : removeNotification
++        }
++        property int leftSwipeAcceptX: -(rightIcon.width + Theme.paddingMedium)
++        property var leftSwipeAction: {
++            previewSettings.left_swipe_action === 0 ? undefined
++            : previewSettings.left_swipe_action === 1
++              ? notificationAction
++              : previewSettings.left_swipe_action === 2
++                ? dismissPreview
++                : removeNotification
++        }
++        property int downSwipeAcceptY: topIcon.height + Theme.paddingMedium
++        property var downSwipeAction: {
++            previewSettings.down_swipe_action === 0 ? undefined
++            : previewSettings.down_swipe_action === 1
++              ? notificationAction
++              : previewSettings.down_swipe_action === 2
++                ? dismissPreview
++                : removeNotification
++        }
++        clip: true
++
++        drag.target: contentBase
++        drag.axis: Drag.XAndYAxis
++        drag.maximumX: rightSwipeAction !== undefined ? rightSwipeAcceptX : 0
++        drag.minimumX: leftSwipeAction !== undefined ? leftSwipeAcceptX : 0
++        drag.maximumY: downSwipeAction !== undefined ? downSwipeAcceptY : 0
++        drag.minimumY: 0
++        drag.onActiveChanged: {
++            if (!drag.active) {
++                if (contentBase.x === rightSwipeAcceptX && rightSwipeAction !== undefined) {
++                    rightSwipeAction()
++                }
++
++                if (contentBase.x === leftSwipeAcceptX && leftSwipeAction !== undefined) {
++                    leftSwipeAction()
++
++                }
++
++                if (contentBase.y === downSwipeAcceptY && downSwipeAction !== undefined) {
++                    downSwipeAction()
++                }
++
++                behaviorX.enabled = true
++                behaviorY.enabled = true
++                contentBase.x = 0
++                contentBase.y = 0
++                drag.axis = Drag.XAndYAxis
++                dragAxisDetermined = false
++                console.log("Drag inactive")
++            }
++            else {
++                behaviorX.enabled = false
++                behaviorY.enabled = false
++            }
++        }
++        drag.onAxisChanged: {
++            if (drag.axis === Drag.XAxis) {
++                contentBase.y = 0
++            }
++            else if (drag.axis === Drag.YAxis) {
++                contentBase.x = 0
+             }
+         }
+     }
+@@ -356,6 +591,7 @@
+         var scroll = false
+         if (state == "showPopup") {
+             scroll = scrollAnimation.initialize(body, bodyContainer)
++            popupArea.notificationShownNSteady = true
+         } else if (state == "showBanner") {
+             scroll = scrollAnimation.initialize(bannerArea, notificationWindow)
+         }
+@@ -397,10 +633,6 @@
+                 visible: true
+             }
+             PropertyChanges {
+-                target: popupIcon
+-                x: Theme.horizontalPageMargin
+-            }
+-            PropertyChanges {
+                 target: popupArea
+                 opacity: 1
+                 textOpacity: 1
+@@ -465,12 +697,6 @@
+         Transition {
+             to: "showPopup"
+             SequentialAnimation {
+-                NumberAnimation {
+-                    target: popupIcon
+-                    property: "x"
+-                    duration: 150
+-                    easing.type: Easing.OutQuad
+-                }
+                 ParallelAnimation {
+                     NumberAnimation {
+                         target: popupArea
+@@ -501,6 +727,7 @@
+         Transition {
+             to: "hidePopup"
+             SequentialAnimation {
++                ScriptAction {script: popupArea.notificationShownNSteady = false}
+                 ParallelAnimation {
+                     SequentialAnimation {
+                         NumberAnimation {
+@@ -523,14 +750,14 @@
+                         easing.type: Easing.InQuad
+                     }
+                 }
+-                NumberAnimation {
+-                    target: popupIcon
+-                    property: "x"
+-                    duration: 150
+-                    easing.type: Easing.InQuad
+-                }
+                 ScriptAction {
+-                    script: notificationWindow.notificationComplete()
++                    script: {
++                        if (removeRequested) {
++                            notification.removeRequested()
++                            removeRequested = false
++                        }
++                        notificationWindow.notificationComplete()
++                    }
+                 }
+             }
+         },
+--- /usr/share/jolla-settings/entries/sailfishos-patch-improved-notification-preview.json	1970-01-01 02:00:00.000000000 +0200
++++ /usr/share/jolla-settings/entries/sailfishos-patch-improved-notification-preview.json	2017-10-02 12:40:25.726640060 +0300
+@@ -0,0 +1,16 @@
++{
++    "translation_catalog": "sailfishos-patch-improved-notification-preview",
++    "entries": [
++        {
++            "path": "system_settings/look_and_feel/sailfishos-patch-improved-notification-preview",
++            "title": "Notifications",
++            "translation_id": "sailfishos-patch-improved-notification-preview-he-notification",
++            "type": "page",
++            "icon": "image://theme/icon-m-notifications",
++            "order": 5000,
++            "params": {
++                "source": "/usr/share/jolla-settings/pages/sailfishos-patch-improved-notification-preview/main.qml"
++            }
++        }
++    ]
++}
+--- /usr/share/jolla-settings/pages/sailfishos-patch-improved-notification-preview/main.qml	1970-01-01 02:00:00.000000000 +0200
++++ /usr/share/jolla-settings/pages/sailfishos-patch-improved-notification-preview/main.qml	2017-10-13 12:44:59.281968269 +0300
+@@ -0,0 +1,327 @@
++import QtQuick 2.0
++import Sailfish.Silica 1.0
++import Nemo.Configuration 1.0
++import Nemo.Notifications 1.0
++
++Page {
++    SilicaFlickable {
++        id: listView
++
++        anchors.fill: parent
++        contentHeight: content.height + Theme.paddingMedium
++
++        Column {
++            id: content
++
++            width: parent.width
++            anchors.left: parent.left
++            anchors.right: parent.right
++
++            PageHeader {
++                //% "Notification preview"
++                title: qsTrId("sailfishos-patch-improved-notification-preview-he-notification_preview")
++            }
++
++            PullDownMenu {
++                id: pullDownMenu
++
++                TextField {
++                    id: summaryTextField
++                    //% "Preview summary"
++                    text: qsTrId("sailfishos-patch-improved-notification-preview-la-preview_summary")
++                    placeholderText: qsTrId("sailfishos-patch-improved-notification-preview-la-preview_summary")
++                    EnterKey.onClicked: if(!errorHighlight) {bodyTextField.focus = true} else focus = false
++                    EnterKey.iconSource: !errorHighlight ? "image://theme/icon-m-enter-next" : "image://theme/icon-m-enter-close"
++                    width: parent.width
++                    errorHighlight: text.length < 1
++                }
++                TextField {
++                    id: bodyTextField
++                    //% "Preview body"
++                    text: qsTrId("sailfishos-patch-improved-notification-preview-la-preview_body")
++                    placeholderText: qsTrId("sailfishos-patch-improved-notification-preview-la-preview_body")
++                    EnterKey.onClicked: {if (!errorHighlight){notification.publish(); pullDownMenu.hide()}; focus = false}
++                    EnterKey.iconSource: !errorHighlight ? "image://theme/icon-m-enter-accept" : "image://theme/icon-m-enter-close"
++                    width: parent.width
++                    errorHighlight: text.length < 1
++                }
++                MenuItem {
++                    id: preview
++                    //% "Preview"
++                    text:qsTrId("sailfishos-patch-improved-notification-preview-me-preview")
++
++                    onClicked: notification.publish()
++                    Notification {
++                        id: notification
++                        category: "x-jolla.settings"
++                        previewSummary: summaryTextField.text
++                        previewBody: bodyTextField.text
++                    }
++                }
++            }
++
++            SectionHeader {
++                //% "Look"
++                text: qsTrId("sailfishos-patch-improved-notification-preview-he-look")
++            }
++
++            ComboBox {
++                id: styleComboBox
++                width: parent.width
++                //% "Style:"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-notification_style")
++                currentIndex: previewSettings.style
++
++                menu: ContextMenu {
++                    MenuItem {
++                        //% "All-round"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-all_round")
++                    }
++                    MenuItem {
++                        //% "All-sharp"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-all_sharp")
++                    }
++                    MenuItem {
++                        //% "Sticky corners"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-sticky_corners")
++                    }
++                    MenuItem {
++                        //% "Speech bubble | Left"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-speech_bubble_left")
++                    }
++                    MenuItem {
++                        //% "Speech bubble | Right"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-speech_bubble_right")
++                    }
++                }
++                onCurrentItemChanged: {
++                    previewSettings.style = currentIndex
++                }
++            }
++
++            Slider {
++                //% "Corner radius"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-corner_radius")
++                stepSize: 1
++                minimumValue: Theme.paddingSmall
++                maximumValue: Theme.paddingLarge
++                width: parent.width
++                value: previewSettings.corner_radius
++                visible: previewSettings.style !== 1
++
++                onValueChanged: previewSettings.corner_radius = value
++            }
++
++            Slider {
++                //% "Margins"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-margins")
++                stepSize: 1
++                minimumValue: 0
++                maximumValue: Theme.paddingLarge
++                width: parent.width
++                value: previewSettings.margin
++                visible: previewSettings.style !== 2
++
++                onValueChanged: previewSettings.margin = value
++            }
++
++            ComboBox {
++                id: positionComboBox
++                width: parent.width
++                //% "Position:"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-position")
++                currentIndex: previewSettings.position
++
++                menu: ContextMenu {
++                    MenuItem {
++                        //% "Center"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-position_center")
++                    }
++                    MenuItem {
++                        //% "Left"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-position_left")
++                    }
++                    MenuItem {
++                        //% "Right"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-position_right")
++                    }
++                }
++                onCurrentItemChanged: previewSettings.position = currentIndex
++            }
++
++            Slider {
++                id: minWidthSlider
++                //% "Minimum width"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-min_width")
++                valueText: value + " %*"
++                stepSize: 1
++                minimumValue: 0
++                maximumValue: Math.min(100, maxWidthSlider.sliderValue)
++                width: parent.width
++                value: previewSettings.min_width
++
++                onValueChanged: {previewSettings.min_width = value;console.log(previewSettings.min_width)}
++            }
++
++            Slider {
++                id: maxWidthSlider
++                //% "Maximum width"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-max_width")
++                valueText: value + " %*"
++                stepSize: 1
++                minimumValue: Math.max(10, minWidthSlider.sliderValue)
++                maximumValue: 100
++                width: parent.width
++                value: previewSettings.max_width
++
++                onValueChanged: {previewSettings.max_width = value;console.log(previewSettings.max_width)}
++            }
++
++            Label {
++                // % "* Of landscape width"
++                text: qsTrId("sailfishos-patch-improved-notification-preview-la-of_landscape_width")
++                color: Theme.secondaryColor
++                height: contentHeight + Theme.paddingLarge
++                verticalAlignment: Text.AlignVCenter
++                font.pixelSize: Theme.fontSizeTiny
++                anchors {
++                    right: parent.right
++                    rightMargin: Theme.paddingLarge
++                }
++            }
++
++            SectionHeader {
++                //% "Behavior"
++                text: qsTrId("sailfishos-patch-improved-notification-preview-he-behavior")
++            }
++
++            ComboBox {
++                id: clickComboBox
++                width: parent.width
++                //% "Tap:"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-tap_action")
++                currentIndex: previewSettings.click_action
++
++                menu: ContextMenu {
++                    MenuItem {
++                        //% "None"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-none_action")
++                    }
++                    MenuItem {
++                        //% "Notification action"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-notification_action")
++                    }
++                    MenuItem {
++                        //% "Dismiss preview"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-dismiss_preview")
++                    }
++                    MenuItem {
++                        //% "Remove notification"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-remove_notification")
++                    }
++                }
++                onCurrentItemChanged: previewSettings.click_action = currentIndex
++            }
++
++            ComboBox {
++                id: leftSwipeComboBox
++                width: parent.width
++                //% "Left swipe:"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-left_swipe_action")
++                currentIndex: previewSettings.left_swipe_action
++
++                menu: ContextMenu {
++                    MenuItem {
++                        //% "None"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-none_action")
++                    }
++                    MenuItem {
++                        //% "Notification action"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-notification_action")
++                    }
++                    MenuItem {
++                        //% "Dismiss preview"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-dismiss_preview")
++                    }
++                    MenuItem {
++                        //% "Remove notification"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-remove_notification")
++                    }
++                }
++                onCurrentItemChanged: previewSettings.left_swipe_action = currentIndex
++            }
++
++            ComboBox {
++                id: rightSwipeComboBox
++                width: parent.width
++                //% "Right swipe:"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-right_swipe_action")
++                currentIndex: previewSettings.right_swipe_action
++
++                menu: ContextMenu {
++                    MenuItem {
++                        //% "None"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-none_action")
++                    }
++                    MenuItem {
++                        //% "Notification action"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-notification_action")
++                    }
++                    MenuItem {
++                        //% "Dismiss preview"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-dismiss_preview")
++                    }
++                    MenuItem {
++                        //% "Remove notification"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-remove_notification")
++                    }
++                }
++                onCurrentItemChanged: previewSettings.right_swipe_action = currentIndex
++            }
++
++            ComboBox {
++                id: downSwipeComboBox
++                width: parent.width
++                //% "Down swipe:"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-down_swipe_action")
++                currentIndex: previewSettings.down_swipe_action
++
++                menu: ContextMenu {
++                    MenuItem {
++                        //% "None"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-none_action")
++                    }
++                    MenuItem {
++                        //% "Notification action"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-notification_action")
++                    }
++                    MenuItem {
++                        //% "Dismiss preview"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-dismiss_preview")
++                    }
++                    MenuItem {
++                        //% "Remove notification"
++                        text: qsTrId("sailfishos-patch-improved-notification-preview-me-remove_notification")
++                    }
++                }
++                onCurrentItemChanged: previewSettings.down_swipe_action = currentIndex
++            }
++        }
++    }
++
++    ConfigurationGroup {
++        id: previewSettings
++        path: "/desktop/lipstick-jolla-home/notification-preview"
++
++        property int style: 0
++        property int corner_radius: {Theme.paddingSmall}
++        property int margin: 0
++        property int position: 0
++        property int min_width: 0
++        property int max_width: 57
++        property int click_action: 1
++        property int left_swipe_action: 0
++        property int right_swipe_action: 0
++        property int down_swipe_action: 0
++    }
++}
