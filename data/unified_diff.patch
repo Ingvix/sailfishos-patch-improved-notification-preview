@@ -1,5 +1,5 @@
---- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-03 12:15:42.705476978 +0300
-+++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-13 12:49:37.364665199 +0300
+--- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-16 15:15:07.799348570 +0300
++++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-16 15:38:16.987521645 +0300
 @@ -12,6 +12,7 @@
  import org.nemomobile.lipstick 0.1
  import org.nemomobile.thumbnailer 1.0
@@ -8,7 +8,7 @@
  import "../systemwindow"
  
  SystemWindow {
-@@ -75,18 +76,45 @@
+@@ -75,18 +76,46 @@
      opacity: 0
      visible: false
  
@@ -57,6 +57,7 @@
 +        property int position: 0
 +        property int min_width: 0
 +        property int max_width: 57
++        property int timeout: 5000
 +        property int click_action: 1
 +        property int left_swipe_action: 0
 +        property int right_swipe_action: 0
@@ -64,7 +65,7 @@
      }
  
      MouseArea {
-@@ -94,26 +122,41 @@
+@@ -94,26 +123,41 @@
  
          property bool down: pressed && containsMouse
          property real textOpacity: 0
@@ -117,7 +118,7 @@
              }
          }
          onDownChanged: {
-@@ -126,67 +169,259 @@
+@@ -126,67 +170,259 @@
  
          Rectangle {
              anchors.fill: parent
@@ -423,7 +424,14 @@
              }
          }
      }
-@@ -356,6 +591,7 @@
+@@ -350,12 +586,13 @@
+         if (!timeout && notification.expireTimeout > 0) {
+             timeout = Math.min(Math.max(notification.expireTimeout, 1000), 5000)
+         } else {
+-            timeout = 5000
++            timeout = previewSettings.timeout
+         }
+ 
          var scroll = false
          if (state == "showPopup") {
              scroll = scrollAnimation.initialize(body, bodyContainer)
@@ -431,7 +439,7 @@
          } else if (state == "showBanner") {
              scroll = scrollAnimation.initialize(bannerArea, notificationWindow)
          }
-@@ -397,10 +633,6 @@
+@@ -397,10 +634,6 @@
                  visible: true
              }
              PropertyChanges {
@@ -442,7 +450,7 @@
                  target: popupArea
                  opacity: 1
                  textOpacity: 1
-@@ -465,12 +697,6 @@
+@@ -465,12 +698,6 @@
          Transition {
              to: "showPopup"
              SequentialAnimation {
@@ -455,7 +463,7 @@
                  ParallelAnimation {
                      NumberAnimation {
                          target: popupArea
-@@ -501,6 +727,7 @@
+@@ -501,6 +728,7 @@
          Transition {
              to: "hidePopup"
              SequentialAnimation {
@@ -463,7 +471,7 @@
                  ParallelAnimation {
                      SequentialAnimation {
                          NumberAnimation {
-@@ -523,14 +750,14 @@
+@@ -523,14 +751,14 @@
                          easing.type: Easing.InQuad
                      }
                  }
@@ -486,7 +494,7 @@
              }
          },
 --- /usr/share/jolla-settings/entries/sailfishos-patch-improved-notification-preview.json	1970-01-01 02:00:00.000000000 +0200
-+++ /usr/share/jolla-settings/entries/sailfishos-patch-improved-notification-preview.json	2017-10-02 12:40:25.726640060 +0300
++++ /usr/share/jolla-settings/entries/sailfishos-patch-improved-notification-preview.json	2017-10-16 15:15:08.359308073 +0300
 @@ -0,0 +1,16 @@
 +{
 +    "translation_catalog": "sailfishos-patch-improved-notification-preview",
@@ -494,7 +502,7 @@
 +        {
 +            "path": "system_settings/look_and_feel/sailfishos-patch-improved-notification-preview",
 +            "title": "Notifications",
-+            "translation_id": "sailfishos-patch-improved-notification-preview-he-notification",
++            "translation_id": "sailfishos-patch-improved-notification-preview-he-notification_preview",
 +            "type": "page",
 +            "icon": "image://theme/icon-m-notifications",
 +            "order": 5000,
@@ -505,8 +513,8 @@
 +    ]
 +}
 --- /usr/share/jolla-settings/pages/sailfishos-patch-improved-notification-preview/main.qml	1970-01-01 02:00:00.000000000 +0200
-+++ /usr/share/jolla-settings/pages/sailfishos-patch-improved-notification-preview/main.qml	2017-10-13 12:44:59.281968269 +0300
-@@ -0,0 +1,327 @@
++++ /usr/share/jolla-settings/pages/sailfishos-patch-improved-notification-preview/main.qml	2017-10-16 15:23:38.367521980 +0300
+@@ -0,0 +1,341 @@
 +import QtQuick 2.0
 +import Sailfish.Silica 1.0
 +import Nemo.Configuration 1.0
@@ -669,7 +677,7 @@
 +                width: parent.width
 +                value: previewSettings.min_width
 +
-+                onValueChanged: {previewSettings.min_width = value;console.log(previewSettings.min_width)}
++                onValueChanged: previewSettings.min_width = value
 +            }
 +
 +            Slider {
@@ -683,7 +691,7 @@
 +                width: parent.width
 +                value: previewSettings.max_width
 +
-+                onValueChanged: {previewSettings.max_width = value;console.log(previewSettings.max_width)}
++                onValueChanged: previewSettings.max_width = value
 +            }
 +
 +            Label {
@@ -702,6 +710,19 @@
 +            SectionHeader {
 +                //% "Behavior"
 +                text: qsTrId("sailfishos-patch-improved-notification-preview-he-behavior")
++            }
++
++            Slider {
++                //% "Duration"
++                label: qsTrId("sailfishos-patch-improved-notification-preview-la-duration")
++                valueText: value + " s"
++                stepSize: 0.5
++                minimumValue: 1
++                maximumValue: 10
++                width: parent.width
++                value: previewSettings.timeout / 1000
++
++                onValueChanged: previewSettings.timeout = value * 1000
 +            }
 +
 +            ComboBox {
@@ -828,6 +849,7 @@
 +        property int position: 0
 +        property int min_width: 0
 +        property int max_width: 57
++        property int timeout: 5000
 +        property int click_action: 1
 +        property int left_swipe_action: 0
 +        property int right_swipe_action: 0

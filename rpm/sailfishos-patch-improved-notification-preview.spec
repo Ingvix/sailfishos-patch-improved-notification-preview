@@ -13,8 +13,8 @@ Name:       sailfishos-patch-improved-notification-preview
 %{!?qtc_make:%define qtc_make make}
 %{?qtc_builddir:%define _builddir %qtc_builddir}
 Summary:    Moves enlargened app icon inside the preview bubble. Provides settings to customize notification preview's look and behavior.
-Version:    0.4
-Release:    1
+Version:    0.4.1
+Release:    2
 Group:      Applications/Productivity
 License:    GPLv2+
 BuildArch:  noarch
@@ -70,6 +70,13 @@ fi
 # << files
 
 %changelog
+* Fri Nov 2 2017 0.4.1-2
+- Spanish translation, thanks to Caballlero
+
+* Mon Oct 16 2017 0.4.1
+- Duration setting
+- Small fixes
+
 * Fri Oct 13 2017 0.4
 - Settings page with lot of customation options
 - Bugfixes

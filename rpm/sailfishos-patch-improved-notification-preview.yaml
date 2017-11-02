@@ -1,7 +1,7 @@
 Name: sailfishos-patch-improved-notification-preview
 Summary: Moves enlargened app icon inside the preview bubble. Provides settings to customize notification preview's look and behavior.
-Version: 0.4
-Release: 1
+Version: 0.4.1
+Release: 2
 BuildArch: noarch
 # The contents of the Group field should be one of the groups listed here:
 # http://gitorious.org/meego-developer-tools/spectacle/blobs/master/data/GROUPS
