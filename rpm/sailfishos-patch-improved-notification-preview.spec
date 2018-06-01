@@ -13,7 +13,7 @@ Name:       sailfishos-patch-improved-notification-preview
 %{!?qtc_make:%define qtc_make make}
 %{?qtc_builddir:%define _builddir %qtc_builddir}
 Summary:    Moves enlargened app icon inside the preview bubble. Provides settings to customize notification preview's look and behavior.
-Version:    0.4.1
+Version:    0.4.2
 Release:    2
 Group:      Applications/Productivity
 License:    GPLv2+
@@ -21,7 +21,7 @@ BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.bz2
 Source100:  sailfishos-patch-improved-notification-preview.yaml
 Requires:   patchmanager
-Requires:   lipstick-jolla-home-qt5 >= 0.33.36.1-10.112.7.jolla
+Requires:   lipstick-jolla-home-qt5 >= 0.36.30-10.3.1.jolla
 Requires:   sailfish-version >= 2.0.2-10.35.43.jolla
 
 %description
@@ -70,7 +70,16 @@ fi
 # << files
 
 %changelog
-* Fri Nov 2 2017 0.4.1-2
+* Fri Feb 23 2018 0.4.2-2
+- French and Russian translations, thanks to Guesnery and Ancelad
+
+* Fri Feb 23 2018 0.4.2-1
+- Fix for 2.1.4.13
+
+* Sat Nov 4 2017 0.4.1-4
+- Fix for 2.1.0.11
+
+* Thu Nov 2 2017 0.4.1-2
 - Spanish translation, thanks to Caballlero
 
 * Mon Oct 16 2017 0.4.1

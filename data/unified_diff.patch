@@ -1,27 +1,22 @@
---- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-16 15:15:07.799348570 +0300
-+++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2017-10-16 15:38:16.987521645 +0300
-@@ -12,6 +12,7 @@
- import org.nemomobile.lipstick 0.1
+--- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2018-02-23 09:39:43.004112447 +0200
++++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationPreview.qml	2018-02-23 10:02:10.046751925 +0200
+@@ -13,6 +13,7 @@
  import org.nemomobile.thumbnailer 1.0
  import org.nemomobile.devicelock 1.0
-+import Nemo.Configuration 1.0
  import "../systemwindow"
- 
++import Nemo.Configuration 1.0
+
  SystemWindow {
-@@ -75,18 +76,46 @@
+     id: notificationWindow
+@@ -75,74 +76,89 @@
      opacity: 0
      visible: false
- 
+
 -    Image {
 -        id: popupIcon
 +    property bool removeRequested: false
- 
--        x: -width
--        y: Theme.paddingMedium
--        width: Theme.iconSizeSmall
--        fillMode: Image.PreserveAspectFit
--        source: notificationWindow.iconUrl ? notificationWindow.iconUrl : 'image://theme/icon-lock-information'
--        sourceSize.width: width
+
+-        property int baseX: Theme.horizontalPageMargin
 +    function notificationAction() {
 +        if (notification) {
 +            notificationWindow._invoked = true
@@ -37,16 +32,22 @@
 +        forceHideTimer.stop()
 +        notificationWindow.notificationExpired()
 +    }
-+
+
+-        x: -width
+-        y: Theme.paddingMedium
+-        width: Theme.iconSizeSmall
+-        fillMode: Image.PreserveAspectFit
+-        source: notificationWindow.iconUrl ? notificationWindow.iconUrl : 'image://theme/icon-lock-information'
+-        sourceSize.width: width
 +    function removeNotification() {
 +        removeRequested = true
-+
+
+-        layer.effect: PressEffect {}
+-        layer.enabled: popupArea.down
 +        forceHideTimer.stop()
 +        notificationWindow.notificationExpired()
 +    }
- 
--        layer.effect: PressEffect {}
--        layer.enabled: popupArea.down
++
 +    ConfigurationGroup {
 +        id: previewSettings
 +        path: "/desktop/lipstick-jolla-home/notification-preview"
@@ -63,10 +64,11 @@
 +        property int right_swipe_action: 0
 +        property int down_swipe_action: 0
      }
- 
+
      MouseArea {
-@@ -94,26 +123,41 @@
- 
+         id: popupArea
+
++
          property bool down: pressed && containsMouse
          property real textOpacity: 0
 -        property color textColor: down ? Theme.highlightColor : Theme.primaryColor
@@ -82,7 +84,7 @@
 +                                    : Math.min(minDisplayWidth, notificationWindow.width
 +                                               - (previewSettings.style !== 2 ? 2*previewSettings.margin : 0))
 +        property bool notificationShownNSteady: false
- 
+
          objectName: "NotificationPreview_popupArea"
          anchors {
 -            top: popupIcon.top
@@ -97,15 +99,39 @@
          width: displayWidth
          height: Math.max(Theme.itemSizeSmall, summary.y*2 + summary.height + bodyContainer.anchors.topMargin + bodyContainer.height)
          opacity: 0
- 
+
+-        drag.minimumX: -parent.width
+-        drag.maximumX: parent.width
+-        drag.target: popupIcon
+-        drag.axis: Drag.XAxis
+-        drag.onActiveChanged: {
+-            if (!drag.active) {
+-                var delta = drag.target.x - popupIcon.baseX
+-                var progress = Math.abs(delta)
+-                var distance = parent.width
+-
+-                if (progress > Theme.itemSizeMedium) {
+-                    slideAnimation.duration = 300 * (distance - progress) / distance
+-                    if (delta > 0) {
+-                        slideAnimation.to = drag.maximumX
+-                    } else {
+-                        slideAnimation.to = drag.minimumX
+-                    }
+-                    slideAnimation.easing.type = Easing.Linear
+-                } else {
+-                    slideAnimation.duration = 100
+-                    slideAnimation.to = popupIcon.baseX
+-                    slideAnimation.easing.type = Easing.InOutQuad
 +        onWidthChanged: {
 +            if (notificationShownNSteady) {
 +                scrollAnimation.reset()
 +                if (scrollAnimation.initialize(body, bodyContainer)) {
 +                    scrollAnimation.start()
-+                }
-+            }
-+        }
+                 }
+-                dragAnimation.start()
+             }
+         }
+-
          onClicked: {
 -            if (notification) {
 -                notificationWindow._invoked = true
@@ -118,8 +144,8 @@
              }
          }
          onDownChanged: {
-@@ -126,67 +170,259 @@
- 
+@@ -172,67 +188,259 @@
+
          Rectangle {
              anchors.fill: parent
 -            radius: Theme.paddingSmall
@@ -129,11 +155,35 @@
 +            color: popupArea.down || popupArea.drag.active ? Qt.tint(Qt.tint(Theme.highlightBackgroundColor, Qt.rgba(0, 0, 0, 0.2)), Theme.rgba(Theme.highlightDimmerColor, 0.4))
 +                        : Qt.tint(Theme.highlightBackgroundColor, Qt.rgba(0, 0, 0, 0.2))
 +            clip: true
-+
+
 +            Behavior on radius {
 +                NumberAnimation {duration: 100; easing.type: Easing.InOutQuad}
 +            }
- 
++
++            Rectangle {
++                height: parent.radius
++                width: height
++                color: parent.color
++                anchors.top: parent.top
++                anchors.left: parent.left
++                visible: previewSettings.style > 0 && previewSettings.style < 4
++            }
++            Rectangle {
++                height: parent.radius
++                width: height
++                color: parent.color
++                anchors.top: parent.top
++                anchors.right: parent.right
++                visible: previewSettings.style === 1 || previewSettings.style === 2 || previewSettings.style === 4
++            }
++            Rectangle {
++                height: parent.radius
++                width: height
++                color: parent.color
++                anchors.bottom: parent.bottom
++                anchors.left: parent.left
++                visible: previewSettings.style === 1 || previewSettings.style === 2 && previewSettings.position === 1
++            }
              Rectangle {
 -                visible: popupArea.down
 -                anchors.fill: parent
@@ -166,41 +216,17 @@
 +                height: parent.radius
 +                width: height
 +                color: parent.color
-+                anchors.top: parent.top
-+                anchors.left: parent.left
-+                visible: previewSettings.style > 0 && previewSettings.style < 4
-+            }
-+            Rectangle {
-+                height: parent.radius
-+                width: height
-+                color: parent.color
-+                anchors.top: parent.top
-+                anchors.right: parent.right
-+                visible: previewSettings.style === 1 || previewSettings.style === 2 || previewSettings.style === 4
-+            }
-+            Rectangle {
-+                height: parent.radius
-+                width: height
-+                color: parent.color
-+                anchors.bottom: parent.bottom
-+                anchors.left: parent.left
-+                visible: previewSettings.style === 1 || previewSettings.style === 2 && previewSettings.position === 1
-+            }
-+            Rectangle {
-+                height: parent.radius
-+                width: height
-+                color: parent.color
 +                anchors.bottom: parent.bottom
 +                anchors.right: parent.right
 +                visible: previewSettings.style === 1 || previewSettings.style === 2 && previewSettings.position === 2
              }
- 
+
              Item {
 -                id: bodyContainer
 -
 -                anchors {
--                    top: summary.bottom
--                    topMargin: summary.visible ? 0 : -height / 2
+-                    top: summary.visible ? summary.bottom : parent.top
+-                    topMargin: summary.visible ? 0 : Theme.paddingMedium/2
 -                    left: summary.left
 -                    right: summary.right
 -                }
@@ -209,11 +235,11 @@
 +                id: contentBase
 +                height: parent.height
 +                width: parent.width
- 
+
                  Label {
 -                    id: body
 +                    id: summary
- 
+
 -                    width: contentWidth
 +                    anchors {
 +                        top: parent.top
@@ -237,7 +263,7 @@
 -                    text: firstLine(notificationWindow.bodyText)
 +                    // Only show the first line of the summary, if there is more
 +                    text: firstLine(notificationWindow.summaryText)
-+                }
+                 }
 +
 +                Item {
 +                    id: bodyContainer
@@ -266,7 +292,7 @@
 +                        // Only show the first line of the body, if there is more
 +                        text: firstLine(notificationWindow.bodyText)
 +                    }
-                 }
++                }
 +
 +                Image {
 +                    id: popupIcon
@@ -424,14 +450,14 @@
              }
          }
      }
-@@ -350,12 +586,13 @@
+@@ -399,12 +607,13 @@
          if (!timeout && notification.expireTimeout > 0) {
              timeout = Math.min(Math.max(notification.expireTimeout, 1000), 5000)
          } else {
 -            timeout = 5000
 +            timeout = previewSettings.timeout
          }
- 
+
          var scroll = false
          if (state == "showPopup") {
              scroll = scrollAnimation.initialize(body, bodyContainer)
@@ -439,18 +465,18 @@
          } else if (state == "showBanner") {
              scroll = scrollAnimation.initialize(bannerArea, notificationWindow)
          }
-@@ -397,10 +634,6 @@
+@@ -446,10 +655,6 @@
                  visible: true
              }
              PropertyChanges {
 -                target: popupIcon
--                x: Theme.horizontalPageMargin
+-                x: popupIcon.baseX
 -            }
 -            PropertyChanges {
                  target: popupArea
                  opacity: 1
                  textOpacity: 1
-@@ -465,12 +698,6 @@
+@@ -514,12 +719,6 @@
          Transition {
              to: "showPopup"
              SequentialAnimation {
@@ -463,7 +489,7 @@
                  ParallelAnimation {
                      NumberAnimation {
                          target: popupArea
-@@ -501,6 +728,7 @@
+@@ -550,6 +749,7 @@
          Transition {
              to: "hidePopup"
              SequentialAnimation {
@@ -471,16 +497,9 @@
                  ParallelAnimation {
                      SequentialAnimation {
                          NumberAnimation {
-@@ -523,14 +751,14 @@
-                         easing.type: Easing.InQuad
-                     }
+@@ -579,7 +779,13 @@
+                     easing.type: Easing.InQuad
                  }
--                NumberAnimation {
--                    target: popupIcon
--                    property: "x"
--                    duration: 150
--                    easing.type: Easing.InQuad
--                }
                  ScriptAction {
 -                    script: notificationWindow.notificationComplete()
 +                    script: {
@@ -517,8 +536,8 @@
 @@ -0,0 +1,341 @@
 +import QtQuick 2.0
 +import Sailfish.Silica 1.0
-+import Nemo.Configuration 1.0
-+import Nemo.Notifications 1.0
++import org.nemomobile.configuration 1.0
++import org.nemomobile.notifications 1.0
 +
 +Page {
 +    SilicaFlickable {
