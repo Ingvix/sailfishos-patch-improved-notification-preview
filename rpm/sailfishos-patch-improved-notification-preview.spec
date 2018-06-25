@@ -12,20 +12,22 @@ Name:       sailfishos-patch-improved-notification-preview
 %{!?qtc_qmake5:%define qtc_qmake5 %qmake5}
 %{!?qtc_make:%define qtc_make make}
 %{?qtc_builddir:%define _builddir %qtc_builddir}
-Summary:    Moves enlargened app icon inside the preview bubble. Provides settings to customize notification preview's look and behavior.
+Summary:    Patch improves notifications and adds some options to customize them
 Version:    0.4.3
-Release:    1
+Release:    2
 Group:      Applications/Productivity
 License:    GPLv2+
 BuildArch:  noarch
+URL:        https://github.com/Ingvix/sailfishos-patch-improved-notification-preview
 Source0:    %{name}-%{version}.tar.bz2
 Source100:  sailfishos-patch-improved-notification-preview.yaml
 Requires:   patchmanager
 Requires:   lipstick-jolla-home-qt5 >= 0.36.30-10.3.1.jolla
 Requires:   sailfish-version >= 2.0.2-10.35.43.jolla
+BuildRequires:  pkgconfig(Qt5Core)
 
 %description
-Patch that makes notification portrait-screen-wide and moves enlargened icon inside the notification bubble. Swipe notification left to dismiss it and right to remove it.
+Moves enlargened app icon inside the preview bubble. Provides settings to customize notification preview's look and behavior.
 
 
 %prep
@@ -68,42 +70,3 @@ fi
 %{_datadir}/translations
 # >> files
 # << files
-
-%changelog
-* Fri Jun 1 2018 0.4.3-1
-- Fix for 2.2.0.29
-
-* Fri Feb 23 2018 0.4.2-2
-- French and Russian translations, thanks to Guesnery and Ancelad
-
-* Fri Feb 23 2018 0.4.2-1
-- Fix for 2.1.4.13
-
-* Sat Nov 4 2017 0.4.1-4
-- Fix for 2.1.0.11
-
-* Thu Nov 2 2017 0.4.1-2
-- Spanish translation, thanks to Caballlero
-
-* Mon Oct 16 2017 0.4.1
-- Duration setting
-- Small fixes
-
-* Fri Oct 13 2017 0.4
-- Settings page with lot of customation options
-- Bugfixes
-
-* Tue Jul 25 2017 0.3
-- Soft corner only if it doesn't face the side of the screen
-- Notification preview's width is determined by the body text
-- Mimimum preview width is 80% of the portrait-screen-width
-- Maximum is full screen width
-
-* Sat Jul 15 2017 0.2
-- Changed patch for overall notification preview improvement patch.
-- Portrait-screen-wide notification
-- Icon moved inside notification bubble and enlarged
-- Reduced the margins restricting preview texts a bit
-
-* Sat Jul 15 2017 0.1
-- First build.
