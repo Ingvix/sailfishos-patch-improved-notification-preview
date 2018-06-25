@@ -20,8 +20,8 @@ Builder: qtc5
 
 # This section specifies build dependencies that are resolved using pkgconfig.
 # This is the preferred way of specifying build dependencies for your package.
-#PkgConfigBR:
-
+PkgConfigBR:
+  - Qt5Core
 # Build dependencies without a pkgconfig setup can be listed here
 # PkgBR:
 #   - package-needed-to-build

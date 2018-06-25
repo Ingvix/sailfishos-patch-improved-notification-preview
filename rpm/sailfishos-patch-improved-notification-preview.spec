@@ -23,6 +23,7 @@ Source100:  sailfishos-patch-improved-notification-preview.yaml
 Requires:   patchmanager
 Requires:   lipstick-jolla-home-qt5 >= 0.36.30-10.3.1.jolla
 Requires:   sailfish-version >= 2.0.2-10.35.43.jolla
+BuildRequires:  pkgconfig(Qt5Core)
 
 %description
 Patch that makes notification portrait-screen-wide and moves enlargened icon inside the notification bubble. Swipe notification left to dismiss it and right to remove it.
