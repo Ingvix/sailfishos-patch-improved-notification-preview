@@ -18,6 +18,7 @@ Release:    2
 Group:      Applications/Productivity
 License:    GPLv2+
 BuildArch:  noarch
+URL:        https://github.com/Ingvix/sailfishos-patch-improved-notification-preview
 Source0:    %{name}-%{version}.tar.bz2
 Source100:  sailfishos-patch-improved-notification-preview.yaml
 Requires:   patchmanager

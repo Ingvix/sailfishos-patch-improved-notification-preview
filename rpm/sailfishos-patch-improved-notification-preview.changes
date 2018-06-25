@@ -1,6 +1,7 @@
 -* Mon Jun 25 2018 Thaodan <theodorstormgrade@gmail.com> 0.4.3-2 
 -- move changelog to seperate file (recommended by  Packaging/Guidelines)
 -- fix building in clean build environment, because qmake5 was not installed (missing qt5-qtcore)
+-- Added URL tag as suggested by rpmlint
 -* Fri Jun 1 2018 0.4.3-1
 -- Fix for 2.2.0.29
 -
